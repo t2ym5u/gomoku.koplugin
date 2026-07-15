@@ -109,40 +109,38 @@ function GomokuScreen:buildLayout()
         button_width = math.floor(sw * 0.92)
     end
 
-    local buttons = ButtonTable:new{
+    local title_bar = self:buildTitleBar(_("Gomoku"), function()
+        return {
+            { text = _("Nouveau"),                  callback = function() self:onNewGame() end },
+            { text = self:_getPlayersButtonText(),  callback = function() self:openPlayersMenu() end },
+            { text = self:_getDiffButtonText(),     callback = function() self:openDifficultyMenu() end },
+            self:makeRulesButtonConfig(GAME_RULES_EN, GAME_RULES_FR),
+        }
+    end)
+
+    -- Bottom button row: Undo
+    local bottom_buttons = ButtonTable:new{
         width                 = button_width,
         shrink_unneeded_width = true,
         buttons = {{
-            { text = _("Nouveau"),
-              callback = function() self:onNewGame() end },
-            { text = self:_getPlayersButtonText(),
-              callback = function() self:openPlayersMenu() end,
-              id = "players_btn" },
-            { text = self:_getDiffButtonText(),
-              callback = function() self:openDifficultyMenu() end,
-              id = "diff_btn" },
-            { text = _("Annuler"),
-              callback = function() self:onUndo() end },
-            self:makeRulesButtonConfig(GAME_RULES_EN, GAME_RULES_FR),
-            self:makeCloseButtonConfig(),
+            { text = _("Annuler"), callback = function() self:onUndo() end },
         }},
     }
-
-    self.top_buttons = buttons
 
     if is_landscape then
         local right_panel = VerticalGroup:new{
             align = "center",
-            buttons,
-            VerticalSpan:new{ width = Size.span.vertical_large },
             self.status_text,
+            VerticalSpan:new{ width = Size.span.vertical_large },
+            bottom_buttons,
         }
-        self.layout = HorizontalGroup:new{
+        local content = HorizontalGroup:new{
             align = "center",
             board_frame,
             HorizontalSpan:new{ width = Size.span.horizontal_default },
             right_panel,
         }
+        self:buildLandscapeLayout(title_bar, content)
     else
         local content = VerticalGroup:new{
             align = "center",
@@ -150,10 +148,8 @@ function GomokuScreen:buildLayout()
             VerticalSpan:new{ width = Size.span.vertical_large },
             self.status_text,
         }
-        self:buildPortraitLayout(buttons, content, nil)
+        self:buildPortraitLayout(title_bar, content, bottom_buttons)
     end
-
-    self[1] = self.layout
     self:updateStatus()
 end
 
