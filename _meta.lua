@@ -1,5 +1,5 @@
 return {
-    version     = "1.1.9",
+    version     = "1.1.10",
     fullname    = "Gomoku",
-    description = "Gomoku — 5 pions en ligne sur 15\xC3\xB715.",
+    description = "Gomoku — 5 pions en ligne sur 15×15.",
 }
