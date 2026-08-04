@@ -109,6 +109,8 @@ function GomokuScreen:buildLayout()
         button_width = math.floor(sw * 0.92)
     end
 
+    self.status_text:setMaxWidth(is_landscape and button_width or board_frame_size)
+
     local title_bar = self:buildTitleBar(_("Gomoku"), function()
         return {
             { text = _("Nouveau"),                  callback = function() self:onNewGame() end },
