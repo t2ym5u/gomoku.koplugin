@@ -113,7 +113,7 @@ function GomokuScreen:buildLayout()
 
     local title_bar = self:buildTitleBar(_("Gomoku"), function()
         return {
-            { text = _("Nouveau"),                  callback = function() self:onNewGame() end },
+            { text = _("New"),                  callback = function() self:onNewGame() end },
             { text = self:_getPlayersButtonText(),  callback = function() self:openPlayersMenu() end },
             { text = self:_getDiffButtonText(),     callback = function() self:openDifficultyMenu() end },
             self:makeRulesButtonConfig(GAME_RULES_EN, GAME_RULES_FR),
@@ -125,7 +125,7 @@ function GomokuScreen:buildLayout()
         width                 = button_width,
         shrink_unneeded_width = true,
         buttons = {{
-            { text = _("Annuler"), callback = function() self:onUndo() end },
+            { text = _("Undo"), callback = function() self:onUndo() end },
         }},
     }
 
@@ -193,7 +193,7 @@ function GomokuScreen:onCellAction(r, c)
     if result == "won" then
         self:onGameEnd()
     elseif result == "draw" then
-        self:showMessage(_("Match nul !"), 3)
+        self:showMessage(_("Draw!"), 3)
     elseif self:_isAITurn() then
         self:triggerAI()
     end
@@ -223,7 +223,7 @@ function GomokuScreen:triggerAI()
     if self.board.status ~= "playing" then return end
     if not self:_isAITurn() then return end
 
-    self:updateStatus(_("L'IA réfléchit..."))
+    self:updateStatus(_("AI is thinking..."))
     local diff  = self.plugin:getSetting("difficulty", "medium")
     local depth = DIFF_DEPTH[diff] or 2
 
@@ -240,7 +240,7 @@ function GomokuScreen:triggerAI()
         if result == "won" then
             self:onGameEnd()
         elseif result == "draw" then
-            self:showMessage(_("Match nul !"), 3)
+            self:showMessage(_("Draw!"), 3)
         end
     end)
 end
@@ -266,7 +266,7 @@ end
 
 function GomokuScreen:onGameEnd()
     local winner = self.board.winner
-    local msg = winner == 1 and _("Les Noirs gagnent !") or _("Les Blancs gagnent !")
+    local msg = winner == 1 and _("Black wins!") or _("White wins!")
     self:showMessage(msg, 4)
 end
 
@@ -281,21 +281,21 @@ function GomokuScreen:updateStatus(msg)
     elseif self.board.status == "ended" then
         local winner = self.board.winner
         if winner == 1 then
-            status = _("Les Noirs gagnent !")
+            status = _("Black wins!")
         elseif winner == 2 then
-            status = _("Les Blancs gagnent !")
+            status = _("White wins!")
         else
-            status = _("Match nul !")
+            status = _("Draw!")
         end
     else
-        local turn = (self.board.turn == 1) and _("Noirs") or _("Blancs")
+        local turn = (self.board.turn == 1) and _("Black") or _("White")
         local players = self.plugin:getSetting("players", 1)
         if players == 1 then
             local diff   = self.plugin:getSetting("difficulty", "medium")
             local dlabel = MenuHelper.DIFFICULTY_LABELS[diff] or diff
-            status = string.format("%s joue  %s", turn, dlabel)
+            status = string.format(_("%s to move  %s"), turn, dlabel)
         else
-            status = string.format("%s joue", turn)
+            status = string.format(_("%s to move"), turn)
         end
     end
     ScreenBase.updateStatus(self, status)
@@ -307,7 +307,7 @@ end
 
 function GomokuScreen:_getPlayersButtonText()
     local players = self.plugin:getSetting("players", 1)
-    return players == 1 and _("1 joueur") or _("2 joueurs")
+    return players == 1 and _("1 player") or _("2 players")
 end
 
 function GomokuScreen:_getDiffButtonText()
@@ -321,10 +321,10 @@ end
 
 function GomokuScreen:openPlayersMenu()
     MenuHelper.openPickerMenu{
-        title      = _("Mode de jeu"),
+        title      = _("Game mode"),
         items      = {
-            { id = 1, text = _("1 joueur (contre IA)") },
-            { id = 2, text = _("2 joueurs") },
+            { id = 1, text = _("1 player (vs AI)") },
+            { id = 2, text = _("2 players") },
         },
         current_id = self.plugin:getSetting("players", 1),
         on_select  = function(id)
