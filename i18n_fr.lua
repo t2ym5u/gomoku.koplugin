@@ -1,6 +1,16 @@
 return {
-    -- "Gomoku" is a proper noun, identical in French and English, and the
-    -- other listed strings ("Annuler", "Match nul !", "Nouveau") are already
-    -- French literals used directly as the _() argument, so no entries are
-    -- needed here yet.
+    ["Gomoku"]                              = { fr = "Gomoku" },
+    ["Gomoku — 5 in a row on a 15×15 board."] = { fr = "Gomoku — 5 pions en ligne sur 15×15." },
+    ["Draw!"]                               = { fr = "Match nul !" },
+    ["AI is thinking..."]                   = { fr = "L'IA réfléchit..." },
+    ["Black wins!"]                         = { fr = "Les Noirs gagnent !" },
+    ["White wins!"]                         = { fr = "Les Blancs gagnent !" },
+    ["Black"]                               = { fr = "Noirs" },
+    ["White"]                               = { fr = "Blancs" },
+    ["%s to move  %s"]                      = { fr = "%s joue  %s" },
+    ["%s to move"]                          = { fr = "%s joue" },
+    ["1 player"]                            = { fr = "1 joueur" },
+    ["2 players"]                           = { fr = "2 joueurs" },
+    ["Game mode"]                           = { fr = "Mode de jeu" },
+    ["1 player (vs AI)"]                    = { fr = "1 joueur (contre IA)" },
 }
