@@ -4,7 +4,7 @@ A Gomoku (five-in-a-row) plugin for [KOReader](https://github.com/koreader/korea
 
 ## Screenshot
 
-*(Screenshot to be added.)*
+![Screenshot](images/gomoku.png)
 
 ## Rules
 
