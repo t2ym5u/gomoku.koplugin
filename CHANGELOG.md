@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-10-02
+
+### Fixed
+- Aligned `1 player (vs AI)` on "1 joueur (contre l'IA)" and the German `AI is
+  thinking...` on "KI denkt nach...". `package.loaded` is keyed by module name
+  alone, so every `require("i18n")` on the device resolves to one module and
+  the first plugin loaded wins it. Every plugin's `i18n_fr.lua` merges into
+  that one shared table, where plugins silently overwrite each other's
+  translations. This plugin and chess disagreed on both strings, so whichever
+  merged last decided them for both.
+
 ## [1.2.1] - 2026-10-01
 
 ### Fixed
