@@ -27,8 +27,8 @@ diagonally — wins.
 |--------|-----|
 | Place a stone | Tap a cell |
 | Undo last move | Tap **Annuler** |
-| New game | Tap **Nouveau** |
-| Switch players mode | Tap **1 joueur** / **2 joueurs** |
+| New game | Tap **Nouvelle partie** |
+| Switch players mode | Tap **Joueurs : 1** / **Joueurs : 2** |
 | Change difficulty | Tap difficulty button |
 | Show rules | Tap **Règles** |
 

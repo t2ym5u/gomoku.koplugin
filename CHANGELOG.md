@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-10-30
+
+### Added
+- "New game" once the game is over (five in a row or a full board): the
+  action bar shows it in place of Undo, so the next game no longer needs the
+  menu.
+
+### Changed
+- Redesigned play screen, in line with the other games: a full-width action
+  bar, a larger board that fills the available room, and one frame around
+  it. The status line reads "15×15 · difficulty · Black to move" and wraps in
+  landscape instead of being cut off.
+- Title-bar menu in the same order as every other game, with the current
+  values shown: New game (was "New"), "Difficulty: Medium", "Players: 1"
+  (was "1 player"), Rules.
+- New README screenshot.
+
+### Fixed
+- The thick board border was notched wherever a grid line crossed it, and
+  its right and bottom edges spilled just past the board. The border is now
+  drawn last, inside the board.
+
 ## [1.2.2] - 2026-10-02
 
 ### Fixed
