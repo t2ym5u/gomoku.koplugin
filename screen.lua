@@ -11,8 +11,6 @@ local function lrequire(name)
     return package.loaded[key]
 end
 
-local ButtonTable     = require("ui/widget/buttontable")
-local Device          = require("device")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
@@ -21,14 +19,13 @@ local UIManager       = require("ui/uimanager")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
 local _               = require("i18n")
+local T               = require("ffi/util").template
 
 local MenuHelper  = require("menu_helper")
 local ScreenBase  = require("screen_base")
 
 local GomokuBoard       = lrequire("board")
 local GomokuBoardWidget = lrequire("board_widget")
-
-local DeviceScreen = Device.screen
 
 -- Difficulty → minimax depth (Gomoku AI is expensive on large boards, keep shallow)
 local DIFF_DEPTH = { easy = 1, medium = 2, hard = 3 }
@@ -75,6 +72,11 @@ function GomokuScreen:init()
     end
 end
 
+-- Five in a row or a full board ends the game.
+function GomokuScreen:isRoundOver()
+    return self.board.status ~= "playing"
+end
+
 function GomokuScreen:serializeState()
     return self.board:serialize()
 end
@@ -84,73 +86,55 @@ end
 -- ---------------------------------------------------------------------------
 
 function GomokuScreen:buildLayout()
-    self.board_widget = GomokuBoardWidget:new{
-        board        = self.board,
-        onCellAction = function(r, c) self:onCellAction(r, c) end,
-    }
-
     local is_landscape = self:isLandscape()
-    local sw = DeviceScreen:getWidth()
-
-    local board_frame = FrameContainer:new{
-        padding = Size.padding.default,
-        margin  = Size.margin.default,
-        self.board_widget,
-    }
-
-    local board_frame_size = self.board_widget.size
-        + (Size.padding.default + Size.margin.default) * 2
-
-    local button_width
-    if is_landscape then
-        local right_w = sw - board_frame_size - Size.span.horizontal_default * 2
-        button_width  = math.max(right_w - Size.span.horizontal_default, 100)
-    else
-        button_width = math.floor(sw * 0.92)
-    end
-
-    self.status_text:setMaxWidth(is_landscape and button_width or board_frame_size)
 
     local title_bar = self:buildTitleBar(_("Gomoku"), function()
         return {
-            { text = _("New"),                  callback = function() self:onNewGame() end },
-            { text = self:_getPlayersButtonText(),  callback = function() self:openPlayersMenu() end },
+            { text = _("New game"),                 callback = function() self:onNewGame() end },
             { text = self:_getDiffButtonText(),     callback = function() self:openDifficultyMenu() end },
+            { text = self:_getPlayersButtonText(),  callback = function() self:openPlayersMenu() end },
             self:makeRulesButtonConfig(GAME_RULES_EN, GAME_RULES_FR),
         }
     end)
 
-    -- Bottom button row: Undo
-    local bottom_buttons = ButtonTable:new{
-        width                 = button_width,
-        shrink_unneeded_width = true,
-        buttons = {{
+    local controls_w = self:getControlsWidth()
+    self.status_text:setMaxWidth(controls_w)
+    local controls = VerticalGroup:new{
+        align = "center",
+        self.status_text,
+        VerticalSpan:new{ width = Size.span.vertical_large },
+        self:buildActionBar({
             { text = _("Undo"), callback = function() self:onUndo() end },
-        }},
+        }),
+    }
+
+    -- The widget paints its own thick outer border, so the frame only pads.
+    local frame_pad = Size.padding.default
+    local frame_extra = 2 * frame_pad
+    local budget_w, budget_h = self:getBoardBudget(title_bar, controls)
+    self.board_widget = GomokuBoardWidget:new{
+        board        = self.board,
+        max_size     = math.min(budget_w, budget_h) - frame_extra,
+        onCellAction = function(r, c) self:onCellAction(r, c) end,
+    }
+    local board_frame = FrameContainer:new{
+        padding    = frame_pad,
+        margin     = 0,
+        bordersize = 0,
+        self.board_widget,
     }
 
     if is_landscape then
-        local right_panel = VerticalGroup:new{
-            align = "center",
-            self.status_text,
-            VerticalSpan:new{ width = Size.span.vertical_large },
-            bottom_buttons,
-        }
         local content = HorizontalGroup:new{
             align = "center",
             board_frame,
-            HorizontalSpan:new{ width = Size.span.horizontal_default },
-            right_panel,
+            HorizontalSpan:new{ width = self:getGutter() },
+            controls,
         }
         self:buildLandscapeLayout(title_bar, content)
     else
-        local content = VerticalGroup:new{
-            align = "center",
-            board_frame,
-            VerticalSpan:new{ width = Size.span.vertical_large },
-            self.status_text,
-        }
-        self:buildPortraitLayout(title_bar, content, bottom_buttons)
+        self:buildPortraitLayout(title_bar, board_frame,
+            VerticalGroup:new{ align = "center", controls, VerticalSpan:new{ width = self:getGutter() } })
     end
     self:updateStatus()
 end
@@ -290,15 +274,19 @@ function GomokuScreen:updateStatus(msg)
     else
         local turn = (self.board.turn == 1) and _("Black") or _("White")
         local players = self.plugin:getSetting("players", 1)
+        local dlabel
         if players == 1 then
-            local diff   = self.plugin:getSetting("difficulty", "medium")
-            local dlabel = MenuHelper.DIFFICULTY_LABELS[diff] or diff
-            status = string.format(_("%s to move  %s"), turn, dlabel)
-        else
-            status = string.format(_("%s to move"), turn)
+            local diff = self.plugin:getSetting("difficulty", "medium")
+            dlabel = MenuHelper.DIFFICULTY_LABELS[diff] or diff
         end
+        status = self:joinStatus(
+            T("%1×%1", 15),
+            dlabel,
+            T(_("%1 to move"), turn))
     end
     ScreenBase.updateStatus(self, status)
+    -- Every move (player's or AI's) and undo ends here.
+    self:refreshActionBar()
 end
 
 -- ---------------------------------------------------------------------------
@@ -306,13 +294,12 @@ end
 -- ---------------------------------------------------------------------------
 
 function GomokuScreen:_getPlayersButtonText()
-    local players = self.plugin:getSetting("players", 1)
-    return players == 1 and _("1 player") or _("2 players")
+    return T(_("Players: %1"), self.plugin:getSetting("players", 1))
 end
 
 function GomokuScreen:_getDiffButtonText()
     local diff = self.plugin:getSetting("difficulty", "medium")
-    return MenuHelper.DIFFICULTY_LABELS[diff] or diff
+    return T(_("Difficulty: %1"), MenuHelper.DIFFICULTY_LABELS[diff] or diff)
 end
 
 -- ---------------------------------------------------------------------------
@@ -321,7 +308,7 @@ end
 
 function GomokuScreen:openPlayersMenu()
     MenuHelper.openPickerMenu{
-        title      = _("Game mode"),
+        title      = _("Players"),
         items      = {
             { id = 1, text = _("1 player (vs AI)") },
             { id = 2, text = _("2 players") },

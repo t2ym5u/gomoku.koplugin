@@ -52,12 +52,17 @@ function GomokuBoardWidget:paintTo(bb, x, y)
     -- Grid lines
     local thin  = 1
     local thick = math.max(2, math.floor(math.min(cw, ch) * 0.06))
-    for i = 0, n do
-        local lw    = (i == 0 or i == n) and thick or thin
-        local color = (i == 0 or i == n) and C_BORDER or C_LINE
-        drawLine(bb, x + math.floor(i * cw), y, lw, self.dimen.h, color)
-        drawLine(bb, x, y + math.floor(i * ch), self.dimen.w, lw, color)
+    -- Inner lines first, then the border on top: drawn in one pass, each
+    -- thin line painted over the thick border it crosses and notched it.
+    for i = 1, n - 1 do
+        drawLine(bb, x + math.floor(i * cw), y, thin, self.dimen.h, C_LINE)
+        drawLine(bb, x, y + math.floor(i * ch), self.dimen.w, thin, C_LINE)
     end
+    -- The closing line sits inside the widget, not just past its edge.
+    drawLine(bb, x, y, thick, self.dimen.h, C_BORDER)
+    drawLine(bb, x + self.dimen.w - thick, y, thick, self.dimen.h, C_BORDER)
+    drawLine(bb, x, y, self.dimen.w, thick, C_BORDER)
+    drawLine(bb, x, y + self.dimen.h - thick, self.dimen.w, thick, C_BORDER)
 
     -- Draw stones
     local cew = self.cell_w_px
