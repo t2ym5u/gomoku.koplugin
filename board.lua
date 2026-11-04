@@ -364,12 +364,159 @@ local function orderedCandidates(grid, n, player, width, cheap)
     return out
 end
 
+-- ---------------------------------------------------------------------------
+-- Incremental evaluation for the search.
+--
+-- evaluateForPlayer() sums a score per run of stones along every row, column
+-- and diagonal, and is antisymmetric (player 2's score is minus player 1's).
+-- So it is a sum over lines, and a stone only changes the four lines through
+-- it: the search keeps each line's contribution (for player 1) and rescans
+-- just those four, about 60 cells instead of 900. lineScore() walks a line in
+-- the same direction as scanDir() so the totals are identical, including the
+-- quirk that the board edge counts as an open end before a run but a closed
+-- one after it.
+-- ---------------------------------------------------------------------------
+
+local line_cache = {}   -- n -> { lines = {cells...}, at = cell -> {4 line ids} }
+
+local function buildLines(n)
+    if line_cache[n] then return line_cache[n] end
+    local lines, at = {}, {}
+    for idx = 1, n * n do at[idx] = {} end
+    local function addLine(r, c, dr, dc)
+        local cells = {}
+        while r >= 1 and r <= n and c >= 1 and c <= n do
+            cells[#cells + 1] = (r - 1) * n + c
+            r = r + dr; c = c + dc
+        end
+        lines[#lines + 1] = cells
+        for _, idx in ipairs(cells) do local t = at[idx]; t[#t + 1] = #lines end
+    end
+    for r = 1, n do addLine(r, 1, 0, 1) end                       -- horizontal
+    for c = 1, n do addLine(1, c, 1, 0) end                       -- vertical
+    for c = n, 1, -1 do addLine(1, c, 1, 1) end                   -- diagonal ↘
+    for r = 2, n do addLine(r, 1, 1, 1) end
+    for c = 1, n do addLine(1, c, 1, -1) end                      -- diagonal ↙
+    for r = 2, n do addLine(r, n, 1, -1) end
+    line_cache[n] = { lines = lines, at = at }
+    return line_cache[n]
+end
+
+-- Score of one line for player 1. `flat` is the board as a flat array.
+local function lineScore(flat, cells)
+    local score, len, i = 0, #cells, 1
+    local prev_val = 0          -- the board edge reads as empty
+    while i <= len do
+        local cell_val = flat[cells[i]]
+        if cell_val ~= 0 and prev_val ~= cell_val then
+            local count, j = 1, i + 1
+            while j <= len and flat[cells[j]] == cell_val do
+                count = count + 1; j = j + 1
+            end
+            local open_ends = (prev_val == 0) and 1 or 0
+            if j <= len and flat[cells[j]] == 0 then open_ends = open_ends + 1 end
+            local seq_score = scoreSequence(count, open_ends)
+            if cell_val == 1 then score = score + seq_score else score = score - seq_score end
+            prev_val = cell_val
+            i = j
+        else
+            prev_val = cell_val
+            i = i + 1
+        end
+    end
+    return score
+end
+
+-- Search state: the grid, a flat copy, per-line scores and their total.
+local S = { grid = nil, n = 0, flat = nil, lval = nil, total = 0, L = nil }
+
+local function evalInit(grid, n)
+    local L = buildLines(n)
+    local flat = {}
+    for r = 1, n do for c = 1, n do flat[(r - 1) * n + c] = grid[r][c] end end
+    local lval, total = {}, 0
+    for k, cells in ipairs(L.lines) do
+        local v = lineScore(flat, cells)
+        lval[k] = v; total = total + v
+    end
+    S.grid, S.n, S.flat, S.lval, S.total, S.L = grid, n, flat, lval, total, L
+end
+
+-- Sets (r, c) to v (0 = empty) and updates the cached evaluation.
+local function setCell(r, c, v)
+    S.grid[r][c] = v
+    local idx = (r - 1) * S.n + c
+    local flat, lval, lines = S.flat, S.lval, S.L.lines
+    flat[idx] = v
+    local total = S.total
+    for _, k in ipairs(S.L.at[idx]) do
+        local nv = lineScore(flat, lines[k])
+        total = total + nv - lval[k]
+        lval[k] = nv
+    end
+    S.total = total
+end
+
+-- evaluateForPlayer(S.grid, S.n, player), from the cache.
+local function evalFast(player)
+    return (player == 1) and S.total or -S.total
+end
+
+-- orderedCandidates(...) with the evaluation read from the cache (same
+-- scores, same order).
+local function orderedCandidatesFast(grid, n, player, cheap)
+    if cheap then return orderedCandidates(grid, n, player, nil, true) end
+    local raw = collectCandidates(grid, n)
+    local opp = (player == 1) and 2 or 1
+    local scored = {}
+    for i = 1, #raw do
+        local m = raw[i]
+        setCell(m.r, m.c, player)
+        local mine = evalFast(player)
+        setCell(m.r, m.c, opp)
+        local theirs = evalFast(opp)
+        setCell(m.r, m.c, 0)
+        scored[i] = { r = m.r, c = m.c, score = mine + theirs * 0.9 }
+    end
+    table.sort(scored, function(a, b)
+        if a.score ~= b.score then return a.score > b.score end
+        if a.r ~= b.r then return a.r < b.r end
+        return a.c < b.c
+    end)
+    return scored
+end
+
+-- ---------------------------------------------------------------------------
+-- Search budget. Each level has a maximum depth (the depth it always played
+-- at) and a CPU budget in seconds of a Kobo-class e-reader; the root deepens
+-- one ply at a time and, when the budget runs out, plays the best move of the
+-- deepest finished iteration. AI_TIME_SCALE simulates a slower device in
+-- tests and benchmarks (0.04 ≈ a Kobo on a fast laptop).
+-- ---------------------------------------------------------------------------
+
+GomokuBoard.AI_LEVELS = {
+    easy   = { depth = 1, budget = 0.5 },
+    medium = { depth = 2, budget = 1.5 },
+    hard   = { depth = 3, budget = 2.5 },
+}
+GomokuBoard.AI_TIME_SCALE = 1
+
+local clock = os.clock
+local AI_ABORT = {}
+local ai_deadline = math.huge
+local ai_nodes = 0
+
 -- Negamax-shaped alpha-beta: returns the score from `maximizer`'s point of
 -- view for the side in `current_player` to move.
 local function minimax(grid, n, depth, maximizer, current_player, alpha, beta)
+    ai_nodes = ai_nodes + 1
+    if ai_nodes % 64 == 0 and clock() > ai_deadline then error(AI_ABORT, 0) end
+    if depth == 0 then
+        return evalFast(maximizer)
+    end
     local candidates = orderedCandidates(grid, n, current_player, nil, true)
-    if #candidates == 0 or depth == 0 then
-        return evaluateForPlayer(grid, n, maximizer)
+    if #candidates == 0 then
+        return evalFast(maximizer)
     end
 
     local opp    = (current_player == 1) and 2 or 1
@@ -377,15 +524,18 @@ local function minimax(grid, n, depth, maximizer, current_player, alpha, beta)
     local best   = is_max and -math.huge or math.huge
 
     for _, m in ipairs(candidates) do
-        grid[m.r][m.c] = current_player
         local val
+        grid[m.r][m.c] = current_player
         if completesFive(grid, n, m.r, m.c, current_player) then
+            grid[m.r][m.c] = 0
             -- Prefer winning sooner, and losing later.
             val = is_max and (1000000 + depth * 10) or -(1000000 + depth * 10)
         else
+            grid[m.r][m.c] = 0
+            setCell(m.r, m.c, current_player)
             val = minimax(grid, n, depth - 1, maximizer, opp, alpha, beta)
+            setCell(m.r, m.c, 0)
         end
-        grid[m.r][m.c] = 0
 
         if is_max then
             if val > best then best = val end
@@ -399,7 +549,30 @@ local function minimax(grid, n, depth, maximizer, current_player, alpha, beta)
     return best
 end
 
-function GomokuBoard:getAIMove(depth)
+-- One root iteration: the best of the `top_n` first candidates at `depth`.
+local function searchRoot(grid, n, scored, top_n, depth, player)
+    local best_move = { r = scored[1].r, c = scored[1].c }
+    local best_val  = -math.huge
+    for i = 1, top_n do
+        local m = scored[i]
+        -- Carrying best_val in as alpha is what makes the root prune at all:
+        -- restarting each candidate at -inf (as this used to) throws away
+        -- every cutoff between siblings, which is most of alpha-beta's value.
+        setCell(m.r, m.c, player)
+        local val = minimax(grid, n, depth - 1, player, (player == 1) and 2 or 1,
+                            best_val, math.huge)
+        setCell(m.r, m.c, 0)
+        if val > best_val then
+            best_val  = val
+            best_move = { r = m.r, c = m.c }
+        end
+    end
+    return best_move
+end
+
+-- Returns the AI's move, searching `depth` plies; `budget` (seconds, scaled
+-- by AI_TIME_SCALE; nil = no limit) can stop it at a shallower depth.
+function GomokuBoard:getAIMove(depth, budget)
     depth = depth or 1
     if self.status ~= "playing" then return nil end
 
@@ -419,36 +592,51 @@ function GomokuBoard:getAIMove(depth)
         return { r = mid, c = mid }
     end
 
-    local scored = orderedCandidates(grid, n, player)
+    evalInit(grid, n)
+    local scored = orderedCandidatesFast(grid, n, player)
     if #scored == 0 then return nil end
+    self.ai_depth_reached = 1
     if #scored == 1 or depth <= 1 then
         return { r = scored[1].r, c = scored[1].c }
     end
 
-    local top_n     = math.min(SEARCH_WIDTH, #scored)
-    local best_move = { r = scored[1].r, c = scored[1].c }
-    local best_val  = -math.huge
-
+    local top_n = math.min(SEARCH_WIDTH, #scored)
     for i = 1, top_n do
         local m = scored[i]
         grid[m.r][m.c] = player
-        if completesFive(grid, n, m.r, m.c, player) then
-            grid[m.r][m.c] = 0
-            return { r = m.r, c = m.c }
-        end
-        -- Carrying best_val in as alpha is what makes the root prune at all:
-        -- restarting each candidate at -inf (as this used to) throws away
-        -- every cutoff between siblings, which is most of alpha-beta's value.
-        local val = minimax(grid, n, depth - 1, player, (player == 1) and 2 or 1,
-                            best_val, math.huge)
+        local wins = completesFive(grid, n, m.r, m.c, player)
         grid[m.r][m.c] = 0
-        if val > best_val then
-            best_val  = val
-            best_move = { r = m.r, c = m.c }
-        end
+        if wins then return { r = m.r, c = m.c } end
     end
 
+    -- Iterative deepening: depth 1 is the ordering above; each deeper
+    -- iteration replaces the choice only once it has finished.
+    local best_move = { r = scored[1].r, c = scored[1].c }
+    local saved = {}
+    for r = 1, n do
+        saved[r] = {}
+        for c = 1, n do saved[r][c] = grid[r][c] end
+    end
+    ai_nodes = 0
+    ai_deadline = budget and (clock() + budget * GomokuBoard.AI_TIME_SCALE) or math.huge
+    for d = 2, depth do
+        local ok, res = pcall(searchRoot, grid, n, scored, top_n, d, player)
+        if not ok then
+            if res ~= AI_ABORT then ai_deadline = math.huge; error(res, 0) end
+            for r = 1, n do for c = 1, n do grid[r][c] = saved[r][c] end end
+            break
+        end
+        best_move = res
+        self.ai_depth_reached = d
+    end
+    ai_deadline = math.huge
     return best_move
+end
+
+-- Plays at a named level ("easy" / "medium" / "hard"), within its budget.
+function GomokuBoard:getAIMoveForLevel(level)
+    local L = GomokuBoard.AI_LEVELS[level] or GomokuBoard.AI_LEVELS.medium
+    return self:getAIMove(L.depth, L.budget)
 end
 
 -- ---------------------------------------------------------------------------

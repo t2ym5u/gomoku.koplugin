@@ -27,8 +27,7 @@ local ScreenBase  = require("screen_base")
 local GomokuBoard       = lrequire("board")
 local GomokuBoardWidget = lrequire("board_widget")
 
--- Difficulty → minimax depth (Gomoku AI is expensive on large boards, keep shallow)
-local DIFF_DEPTH = { easy = 1, medium = 2, hard = 3 }
+-- Difficulty → search depth and time budget: GomokuBoard.AI_LEVELS (board.lua).
 
 local GAME_RULES_EN = _([[
 Gomoku — Rules
@@ -209,11 +208,10 @@ function GomokuScreen:triggerAI()
 
     self:updateStatus(_("AI is thinking..."))
     local diff  = self.plugin:getSetting("difficulty", "medium")
-    local depth = DIFF_DEPTH[diff] or 2
 
     UIManager:scheduleIn(0.05, function()
         if self.board.status ~= "playing" then return end
-        local move = self.board:getAIMove(depth)
+        local move = self.board:getAIMoveForLevel(diff)
         if not move then return end
 
         local result = self.board:placeStone(move.r, move.c)

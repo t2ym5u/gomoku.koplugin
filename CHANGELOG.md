@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-11-04
+
+### Changed
+- The AI thinks about ten times faster and plays exactly the same moves as
+  before: the board evaluation is now updated only along the four lines
+  through each stone instead of rescanning the whole board. Hard's slowest
+  move went from about 1 s to 0.06 s on a desktop (roughly 24 s to 1.5 s on
+  a Kobo), Medium's from 0.08 s to 0.006 s.
+- Each level also has a time limit (Hard 2.5 s, Medium 1.5 s, Easy 0.5 s on
+  an e-reader): if a move would take longer, the AI plays the best move of
+  the deepest search it finished instead of keeping you waiting.
+
 ## [1.3.3] - 2026-11-03
 
 ### Changed
