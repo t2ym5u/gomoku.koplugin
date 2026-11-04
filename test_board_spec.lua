@@ -101,6 +101,49 @@ describe("GomokuBoard", function()
         end)
     end)
 
+    describe("AI time budget", function()
+        local function midgame()
+            local b = Board:new()
+            math.randomseed(7)
+            for _ = 1, 14 do
+                local c = b:getCandidates()
+                local m = c[math.random(#c)]
+                b:placeStone(m.r, m.c)
+            end
+            return b
+        end
+
+        it("still returns a legal move when the budget is already spent", function()
+            local b = midgame()
+            local scale = Board.AI_TIME_SCALE
+            Board.AI_TIME_SCALE = 0
+            local move = b:getAIMoveForLevel("hard")
+            Board.AI_TIME_SCALE = scale
+            assert.is_not_nil(move)
+            assert.are.equal(0, b.grid[move.r][move.c])
+            assert.are.equal(1, b.ai_depth_reached)
+        end)
+
+        it("leaves the board untouched after an interrupted search", function()
+            local b = midgame()
+            local before = b:serialize()
+            local scale = Board.AI_TIME_SCALE
+            Board.AI_TIME_SCALE = 0
+            b:getAIMoveForLevel("hard")
+            Board.AI_TIME_SCALE = scale
+            assert.are.same(before, b:serialize())
+        end)
+
+        it("plays a hard move well within its budget", function()
+            local b = midgame()
+            local t0 = os.clock()
+            local move = b:getAIMoveForLevel("hard")
+            assert.is_not_nil(move)
+            assert.is_true(os.clock() - t0 < 1.0)
+            assert.are.equal(3, b.ai_depth_reached)
+        end)
+    end)
+
     describe("serialize / load", function()
         it("round-trips grid, turn and history", function()
             local b = Board:new()
