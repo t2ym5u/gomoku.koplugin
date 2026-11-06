@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-11-05
+
+### Changed
+- The three difficulty levels now really differ. Before, Medium and Hard
+  won only about half their games against the level below; now Hard beats
+  Medium about 3 games in 4 and Medium beats Easy almost always.
+- The AI understands threats: it rates every point by the shapes a stone
+  there would make (five, open four, four, open three, broken shapes
+  included), knows whose turn it is (a four to complete wins now, an open
+  three it must block), keeps searching through forcing fours past its
+  depth limit, and only considers real defences against an open three.
+  The new Hard beats the old Hard about 3 games in 4.
+- Easy no longer searches: it plays like a casual player, always completing
+  its own five and blocking yours, but otherwise often choosing among its
+  five favourite points, so it sometimes misses a block or a winning move.
+- Hard searches as deep as it can in at most 2.5 s on an e-reader (it used
+  to stop at three plies); Medium looks two plies ahead and occasionally
+  plays its second choice.
+
 ## [1.4.2] - 2026-11-04
 
 ### Fixed

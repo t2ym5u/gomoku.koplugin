@@ -15,7 +15,7 @@ diagonally — wins.
 ## Features
 
 - **15×15 board** — standard competition size
-- **1-player mode** — alpha-beta AI at three difficulty levels (easy / medium / hard), searching one, two or three plies ahead
+- **1-player mode** — AI at three difficulty levels: Easy plays like a casual player (it can miss a block), Medium looks two moves ahead, Hard searches as deep as it can in at most 2.5 s on an e-reader and follows forcing fours to the end
 - **2-player mode** — two humans on the same device
 - **Undo** — take back one move (or two in 1-player mode to keep it your turn)
 - **Stone choice** — in 1-player mode, pick whether you play Black or White
