@@ -67,7 +67,7 @@ function GomokuScreen:init()
     end
     ScreenBase.init(self)
     if self:_isAITurn() then
-        UIManager:scheduleIn(0.1, function() self:triggerAI() end)
+        self:schedule(0.1, function() self:triggerAI() end)
     end
 end
 
@@ -192,9 +192,12 @@ function GomokuScreen:onUndo()
     local ok = self.board:undoMove()
     if ok and players == 1 then self.board:undoMove() end
     if ok then
+        self:cancelScheduled()  -- a pending AI reply was to the undone position
         self.board_widget:refresh()
         self.plugin:saveState(self:serializeState())
         self:updateStatus()
+        -- Undone back to a position where the AI moves (e.g. it plays first).
+        if self:_isAITurn() then self:triggerAI() end
     end
 end
 
@@ -209,8 +212,9 @@ function GomokuScreen:triggerAI()
     self:updateStatus(_("AI is thinking..."))
     local diff  = self.plugin:getSetting("difficulty", "medium")
 
-    UIManager:scheduleIn(0.05, function()
-        if self.board.status ~= "playing" then return end
+    self:schedule(0.05, function()
+        -- Re-checked: "2 players" or the stone may have changed in the meantime.
+        if not self:_isAITurn() then return end
         local move = self.board:getAIMoveForLevel(diff)
         if not move then return end
 
@@ -232,13 +236,14 @@ end
 -- ---------------------------------------------------------------------------
 
 function GomokuScreen:onNewGame()
+    self:cancelScheduled()  -- an AI move still pending belongs to the old game
     self.board = GomokuBoard:new()
     self.board:reset()
     self.plugin:saveState(self.board:serialize())
     self:buildLayout()
     UIManager:setDirty(self, function() return "ui", self.dimen end)
     if self:_isAITurn() then
-        UIManager:scheduleIn(0.1, function() self:triggerAI() end)
+        self:schedule(0.1, function() self:triggerAI() end)
     end
 end
 
